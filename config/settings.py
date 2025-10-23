@@ -12,29 +12,52 @@ except Exception:
 BASE_DIR = Path(__file__).resolve().parent.parent
 ASSETS_DIR = BASE_DIR / "assets"
 
-# Cargar variables desde .env si está disponible
-env_path = BASE_DIR / ".env"
-if load_dotenv:
+"""Carga de variables de entorno (.env) compatible con ejecución congelada (PyInstaller)."""
+# Buscar .env en:
+# 1) Directorio del ejecutable (cuando está congelado)
+# 2) Directorio actual de trabajo
+# 3) BASE_DIR del proyecto
+search_paths = []
+try:
+    import sys as _sys
+    if getattr(_sys, 'frozen', False):  # PyInstaller
+        exe_dir = Path(_sys.executable).resolve().parent
+        search_paths.append(exe_dir / ".env")
+except Exception:
+    pass
+search_paths.append(Path(os.getcwd()) / ".env")
+search_paths.append(BASE_DIR / ".env")
+
+env_path = None
+for p in search_paths:
     try:
-        load_dotenv(env_path, override=True)
+        if p.exists():
+            env_path = p
+            break
     except Exception:
-        pass
-# Fallback manual si python-dotenv no está disponible o no cargó
-if not os.environ.get("FIREBASE_API_KEY") and env_path.exists():
-    try:
-        with open(env_path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                # Quitar BOM si existe y recortar espacios
-                line = line.lstrip('\ufeff').strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, val = line.split("=", 1)
-                key = key.lstrip('\ufeff').strip()
-                val = val.lstrip('\ufeff').strip().strip('"').strip("'")
-                if key and val and key not in os.environ:
-                    os.environ[key] = val
-    except Exception:
-        pass
+        continue
+
+if env_path:
+    if load_dotenv:
+        try:
+            load_dotenv(env_path, override=True)
+        except Exception:
+            pass
+    # Fallback manual si python-dotenv no está disponible o no cargó
+    if not os.environ.get("FIREBASE_API_KEY"):
+        try:
+            with open(env_path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.lstrip('\ufeff').strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, val = line.split("=", 1)
+                    key = key.lstrip('\ufeff').strip()
+                    val = val.lstrip('\ufeff').strip().strip('"').strip("'")
+                    if key and val and key not in os.environ:
+                        os.environ[key] = val
+        except Exception:
+            pass
 
  
 

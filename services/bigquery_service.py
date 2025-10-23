@@ -30,12 +30,41 @@ class BigQueryService:
             try:
                 # Configurar credenciales si no están configuradas
                 if not os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
-                    # Buscar archivo de credenciales en el directorio actual
-                    creds_file = 'worldwide-470917-b0939d44c1ae.json'
-                    if os.path.exists(creds_file):
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.abspath(creds_file)
-                        print(f"✅ Credenciales configuradas: {creds_file}")
-                    else:
+                    # Buscar archivo de credenciales en directorios conocidos:
+                    # - Directorio de trabajo
+                    # - Directorio del ejecutable (cuando está congelado con PyInstaller)
+                    # - BASE_DIR del proyecto
+                    creds_candidates = [
+                        'worldwide-470917-f19e4e7e3cf6.json',
+                        'worldwide-470917-b0939d44c1ae.json',
+                        'service-account.json',
+                        'credentials.json'
+                    ]
+                    search_dirs = [os.getcwd()]
+                    try:
+                        import sys as _sys
+                        exe_dir = os.path.dirname(_sys.executable)
+                        if exe_dir and exe_dir not in search_dirs:
+                            search_dirs.append(exe_dir)
+                    except Exception:
+                        pass
+                    try:
+                        if 'BASE_DIR' in globals():
+                            search_dirs.append(str(BASE_DIR))
+                    except Exception:
+                        pass
+                    found = False
+                    for d in search_dirs:
+                        for name in creds_candidates:
+                            candidate = os.path.join(d, name)
+                            if os.path.exists(candidate):
+                                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.abspath(candidate)
+                                print(f"✅ Credenciales configuradas: {candidate}")
+                                found = True
+                                break
+                        if found:
+                            break
+                    if not found:
                         print("⚠️ No se encontró archivo de credenciales")
                 
                 # Configurar codificación UTF-8 para Windows
@@ -549,12 +578,12 @@ class BigQueryService:
                     delete_query = f"""
                         DELETE FROM `{TABLE_INST_CONTACTO}`
                         WHERE contacto_id = @contacto_id
-                            AND instalacion_rol IN UNNEST(@insts)
+                                    AND instalacion_rol IN UNNEST(@insts)
                     """
                     job_config = bigquery.QueryJobConfig(
                         query_parameters=[
-                                bigquery.ScalarQueryParameter("contacto_id", "STRING", contacto_id),
-                                bigquery.ArrayQueryParameter("insts", "STRING", a_eliminar),
+                                        bigquery.ScalarQueryParameter("contacto_id", "STRING", contacto_id),
+                                        bigquery.ArrayQueryParameter("insts", "STRING", a_eliminar),
                         ]
                     )
                     self.client.query(delete_query, job_config=job_config).result()
@@ -1042,7 +1071,7 @@ class BigQueryService:
                 FROM `{TABLE_USUARIOS}` u
                 LEFT JOIN `{TABLE_ROLES}` r ON u.rol_id = r.rol_id
                 WHERE u.activo = TRUE
-            """
+        """
         
             if cliente_rol:
                 query += f" AND u.cliente_rol = '{cliente_rol}'"
